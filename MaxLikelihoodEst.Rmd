@@ -114,8 +114,6 @@ n_profile(5000, Y)
 ## Ширина доверительных интервалов
 
 ```{r}
-plot(x = seq(start, finish, step), y = m_diffinter, type = "h", ylim = c(0, max(m_diffinter)))
-lines(x = seq(start, finish, step), y = 35 / sqrt(seq(start, finish, step)))
-plot(x = seq(start, finish, step), y = sd_diffinter, type = "h", ylim = c(0, max(sd_diffinter)))
-lines(x = seq(start, finish, step), y = 42 / sqrt(seq(start, finish, step)))
+plot(x = log(seq(start, finish, step)), y = log(m_diffinter), type = "p")
+plot(x = log(seq(start, finish, step)), y = log(sd_diffinter), type = "p")
 ```
