@@ -1,0 +1,121 @@
+---
+title: "Оценки максимального правдоподобия"
+author: "Олейник Михаил"
+output: html_notebook
+---
+
+## Модель
+
+```{r}
+library(MASS)
+library(bbmle)
+```
+
+## Моделирование выборки $Y$
+
+```{r}
+r_intervalcensordouble <- function(n, G, m = 0, sd = 1){
+  X <- rlnorm(n, m, sd)
+  Y <- as.data.frame(G(n))
+  colnames(Y) <- c("U", "V")
+  
+  Y <- cbind(Y, delta1 = as.numeric(X < Y$U), delta2 = as.numeric(X < Y$V))
+  Y
+}
+
+rG <- function(n, m = 0, sd = 1, rate = 1){
+  U <- rnorm(n, m, sd)
+  V <- U + rexp(n, rate)
+  
+  cbind(U, V)
+}
+```
+
+```{r}
+m <- 2
+sd <- 3
+Y <- r_intervalcensordouble(100000, rG, m, sd)
+Y
+```
+
+## Функция правдоподобия
+
+Составим функцию правдоподобия, используя функцию распределения, вычисляемую в зависимости от того, в какой интервал "попал" $X$:
+
+```{r}
+minusloglike <- function(Y, m, sd){
+  -sum(log(ifelse(Y$delta2 == 1, ifelse(Y$delta1 == 1, plnorm(Y$U, m, sd), plnorm(Y$V, m, sd) - plnorm(Y$U, m, sd)), 1 - plnorm(Y$V, m, sd))))
+}
+```
+
+## Оценка максимального правдоподобия
+
+```{r}
+fit_norm <- mle2(function(m, sd) minusloglike(Y, m, sd), start = list(m = 0, sd = 1), lower = c(-Inf, 0), upper = c(Inf, Inf), method = 'L-BFGS-B')
+
+summary(fit_norm)
+```
+
+## Состоятельность
+
+```{r message=FALSE, warning=FALSE}
+m_vector <- c()
+sd_vector <- c()
+m_diffinter <- c()
+sd_diffinter <- c()
+start <- 1000
+finish <- 100000
+step <- 1000
+
+for (i in seq(start, finish, step)){
+  fit_norm <- mle2(function(m, sd) minusloglike(Y[1:i,], m, sd), start = list(m = 0, sd = 1), lower = c(-Inf, 0), upper = c(Inf, Inf), method = 'L-BFGS-B')
+  
+  m_vector <- c(m_vector, fit_norm@coef[['m']])
+  sd_vector <- c(sd_vector, fit_norm@coef[['sd']])
+  
+  interval <- confint(fit_norm)
+  m_diffinter <- c(m_diffinter, interval[1, 2] - interval[1, 1])
+  sd_diffinter <- c(sd_diffinter, interval[2, 2] - interval[2, 1])
+}
+```
+
+```{r}
+plot(x = seq(start, finish, step), y = m_vector)
+lines(x = c(start, finish), y = c(m, m), col = "red")
+plot(x = seq(start, finish, step), y = sd_vector)
+lines(x = c(start, finish), y = c(sd, sd), col = "red")
+```
+
+## Профили
+
+```{r}
+n_profile <- function(n, Y){
+  plot(profile(mle2(function(m, sd) minusloglike(Y[1:n,], m, sd), start = list(m = 0, sd = 1), lower = c(-Inf, 0), upper = c(Inf, Inf), method = 'L-BFGS-B')))
+}
+```
+
+### 100 индивидов
+
+```{r}
+n_profile(100, Y)
+```
+### 1000 индивидов
+
+```{r}
+n_profile(1000, Y)
+```
+
+### 5000 индивидов
+
+```{r}
+n_profile(5000, Y)
+```
+
+## Ширина доверительных интервалов
+
+```{r}
+plot(x = seq(start, finish, step), y = m_diffinter, type = "h", ylim = c(0, max(m_diffinter)))
+lines(x = seq(start, finish, step), y = 35 / sqrt(seq(start, finish, step)))
+plot(x = seq(start, finish, step), y = sd_diffinter, type = "h", ylim = c(0, max(sd_diffinter)))
+lines(x = seq(start, finish, step), y = 42 / sqrt(seq(start, finish, step)))
+```
